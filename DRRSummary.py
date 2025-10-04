@@ -2,8 +2,10 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
+from datetime import datetime
+import calendar
 
-# Define the required columns to extract and output (exactly as you listed)
+# Define the required columns to extract and output
 required_columns = [
     'Date', 'Time', 'Debtor', 'Account No.', 'Card No.', 'Service No.', 
     'Call Status', 'Status', 'Remark', 'Remark By', 'Remark Type', 'Collector', 
@@ -45,6 +47,42 @@ if uploaded_files:
             # Get unique clients (campaigns) from combined data
             unique_clients = combined_df['Client'].unique()
             
+            # Determine date range from the 'Date' column
+            if 'Date' in combined_df.columns:
+                combined_df['Date'] = pd.to_datetime(combined_df['Date'], errors='coerce')
+                min_date = combined_df['Date'].min()
+                max_date = combined_df['Date'].max()
+                
+                # Default to current month if dates are invalid
+                if pd.isna(min_date) or pd.isna(max_date):
+                    today = datetime.today()
+                    month_name = today.strftime("%B")
+                    last_day = calendar.monthrange(today.year, today.month)[1]
+                    date_range_str = f"{month_name} 1-{last_day}"
+                else:
+                    # Check if dates are in the same month
+                    if min_date.month == max_date.month and min_date.year == max_date.year:
+                        month_name = min_date.strftime("%B")
+                        date_range_str = f"{month_name} {min_date.day}-{max_date.day}"
+                    else:
+                        # If spanning multiple months, use full month for min_date
+                        month_name = min_date.strftime("%B")
+                        last_day = calendar.monthrange(min_date.year, min_date.month)[1]
+                        date_range_str = f"{month_name} 1-{last_day}"
+            else:
+                # Fallback if no Date column
+                today = datetime.today()
+                month_name = today.strftime("%B")
+                last_day = calendar.monthrange(today.year, today.month)[1]
+                date_range_str = f"{month_name} 1-{last_day}"
+            
+            # Get today's date in MMDDYY format
+            today = datetime.today()
+            today_str = today.strftime("%m%d%y")
+            
+            # Construct file name
+            file_name = f"{date_range_str} DRR Summary {today_str}.xlsx"
+            
             # Create an in-memory buffer for the output Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -62,7 +100,7 @@ if uploaded_files:
             st.download_button(
                 label="Download Filtered Excel",
                 data=output,
-                file_name="filtered_campaigns.xlsx",
+                file_name=file_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             st.success("Processing complete! Download the file above.")
